@@ -141,15 +141,18 @@ def main(username):
             logger.info('done!')
             break
         for item in data:
+            if item['type'] != 'image':
+                logger.debug('SKIPPING: Wrong type: {}'.format(item['type']))
+                continue
             url = item['url']
             filename = get_filename_from_url(url)
             assert filename
             if item in store:
-                logger.debug('SKIPPING: File already exists {}'.format(filename))
+                logger.debug('SKIPPING: File already downloaded: {}'.format(filename))
                 continue
             save_path = filename  # TODO sort into tags
             if os.path.isfile(save_path):
-                logger.warn('File already exists: {}'.format(save_path))
+                logger.warn('SKIPPING: File already exists: {}'.format(save_path))
                 continue
             else:
                 logger.info('Downloading {} -> {}'.format(url, save_path))
