@@ -16,10 +16,7 @@ download_base = 'download'
 
 
 class Store(object):
-    data = None
-    existing = None
     filename = 'Info.json'
-    meta = None
 
     def __init__(self):
         self.path = os.path.join('.', 'Info.json')
@@ -32,8 +29,22 @@ class Store(object):
                 self.data = {}
         else:
             self.data = {}
+        self.find_local_files()
         self.setup_existing()
-        self.relink_files()
+
+    def find_local_files(self):
+        """Find what files we have locally."""
+        local_files = {}
+        for root, dirnames, filenames in os.walk('.'):
+            for filename in filenames:
+                actual_path = os.path.normpath(os.path.join(root, filename))
+                if os.path.isdir(actual_path):
+                    continue
+                key = md5(os.path.join(actual_path))
+                if key in local_files:
+                    logger.debug('duplicate file found on disk: {}'.format(actual_path))
+                local_files[key] = actual_path
+        self.local_files = local_files
 
     def setup_existing(self):
         """Allows us to look up store items by hash."""
@@ -45,35 +56,19 @@ class Store(object):
                 lost.append(key)
             if item['hash'] in existing:
                 # TODO delete the one that does not actually exist
-                logger.warn('hash already exists: {} {}'.format(key, existing[item['hash']]))
+                logger.warn('duplicate file found in data: {} {}'.format(key, existing[item['hash']]))
             existing[item['hash']] = key
         self.existing = existing
+        if lost:
+            self.relink_files(lost)
 
-    def relink_files(self):
-        """
-        Scan `download_base` and regenerate store based on files found.
-
-        User may have moved files around.
-        """
-        new_existing = {}
-        for root, dirnames, filenames in os.walk('.'):
-            for filename in filenames:
-                actual_path = os.path.normpath(os.path.join(root, filename))
-                if os.path.isdir(actual_path):
-                    continue
-                key = md5(os.path.join(actual_path))
-                if key in self.existing:
-                    assumed_path = self.existing[key]
-                    if actual_path != assumed_path:
-                        logger.warn('file moved: {} -> {}'.\
-                            format(actual_path, self.existing[key]))
-                        self.data[actual_path] = self.data[assumed_path]
-                        self.data.pop(assumed_path)
-                    self.existing.pop(key)
-                    new_existing[key] = actual_path
-                else:
-                    logger.warn("orphan {}".format(actual_path))
-        self.existing = new_existing
+    def relink_files(self, lost):
+        """Fix files in datastore that got unlinked. User may have moved files around."""
+        for old_file in lost:
+            actual_file = self.local_files[self.data[old_file]['hash']]
+            self.data[actual_file] = self.data[old_file]
+            self.data.pop(old_file)
+            logger.debug('relinking {} -> {}'.format(old_file, actual_file))
         self.save()
 
     def add(self, key, meta):
