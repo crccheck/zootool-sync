@@ -1,4 +1,4 @@
-from hashlib import md5
+from hashlib import md5 as hashfunc
 import json
 import logging
 import os
@@ -22,7 +22,7 @@ class Store(object):
     meta = None
 
     def __init__(self):
-        self.path = os.path.join(download_base, 'Info.json')
+        self.path = os.path.join('.', 'Info.json')
         if os.path.isfile(self.path):
             try:
                 with open(self.path) as fh:
@@ -33,13 +33,48 @@ class Store(object):
         else:
             self.data = {}
         self.setup_existing()
+        self.relink_files()
 
     def setup_existing(self):
         """Allows us to look up store items by hash."""
         existing = {}
+        lost = []
         for key, item in self.data.items():
+            if not os.path.isfile(key):
+                logger.debug('lost file: {}'.format(key))
+                lost.append(key)
+            if item['hash'] in existing:
+                # TODO delete the one that does not actually exist
+                logger.warn('hash already exists: {} {}'.format(key, existing[item['hash']]))
             existing[item['hash']] = key
         self.existing = existing
+
+    def relink_files(self):
+        """
+        Scan `download_base` and regenerate store based on files found.
+
+        User may have moved files around.
+        """
+        new_existing = {}
+        for root, dirnames, filenames in os.walk('.'):
+            for filename in filenames:
+                actual_path = os.path.normpath(os.path.join(root, filename))
+                if os.path.isdir(actual_path):
+                    continue
+                key = md5(os.path.join(actual_path))
+                if key in self.existing:
+                    assumed_path = self.existing[key]
+                    if actual_path != assumed_path:
+                        logger.warn('file moved: {} -> {}'.\
+                            format(actual_path, self.existing[key]))
+                        self.data[actual_path] = self.data[assumed_path]
+                        self.data.pop(assumed_path)
+                    self.existing.pop(key)
+                    new_existing[key] = actual_path
+                else:
+                    logger.warn("orphan {}".format(actual_path))
+        self.existing = new_existing
+        self.save()
 
     def add(self, key, meta):
         self.data[key] = meta
@@ -49,8 +84,8 @@ class Store(object):
             print "new item found!", key
 
     def save(self):
-        if self.existing:
-            print "orphaned files:", self.existing
+        # if self.existing:
+        #     print "orphaned files:", self.existing
         # dump meta
         with open(self.path, 'w') as fh:
             json.dump(self.data, fh, indent=2)
@@ -71,9 +106,12 @@ def download(url, save_path):
             fh.write(block)
 
 
+def md5(path):
+    return hashfunc(open(path, 'rb').read()).hexdigest()
+
+
 def get_meta(item, path):
     """Get metadata about an item."""
-    hash = md5(open(path, 'rb').read()).hexdigest()
     return dict(
         uid=item['uid'],
         title=item['title'],
@@ -82,7 +120,7 @@ def get_meta(item, path):
         tags=item['tags'],
         url=item['url'],
         source=item['referer'],
-        hash=hash,
+        hash=md5(path),
     )
 
 
@@ -125,5 +163,12 @@ if not len(logger.handlers):
     logger.addHandler(ColorizingStreamHandler())
 
 if __name__ == "__main__":
-    store = Store()
-    main(sys.argv[1])
+    cwd = os.getcwd()
+    try:
+        os.chdir(download_base)
+        store = Store()
+        # main(sys.argv[1])
+    except:
+        raise
+    finally:
+        os.chdir(cwd)
