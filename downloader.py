@@ -2,7 +2,6 @@ import logging
 import os
 import sys
 import urlparse
-import urllib
 
 from project_runpy.tim import env
 from project_runpy.heidi import ColorizingStreamHandler
@@ -30,26 +29,33 @@ def download(url, save_path):
 
 
 def main(username):
-    global response
-    params = dict(
-        apikey=env.get('ZOOTOOL_API_KEY'),
-        username=username,
-    )
-    response = requests.get(url_endpoint, params=params)
-    data = response.json()
-    if not os.path.isdir(download_base):
-        os.mkdir(download_base)
-    # TODO de-paginate
-    for item in data:
-        url = item['url']
-        filename = get_filename_from_url(url)
-        assert filename
-        save_path = os.path.join(download_base, filename)  # TODO sort into tags
-        if not os.path.isfile(save_path):
-            logger.info('Downloading {} -> {}'.format(url, save_path))
-            download(url, save_path)
-        else:
-            logger.debug('File already exists: {}'.format(save_path))
+    offset = 0
+    while True:
+        params = dict(
+            apikey=env.get('ZOOTOOL_API_KEY'),
+            username=username,
+            limit=100,
+            offset=offset,
+        )
+        response = requests.get(url_endpoint, params=params)
+        data = response.json()
+        if len(data) == 0:
+            logger.info('done!')
+            break
+        if not os.path.isdir(download_base):
+            os.mkdir(download_base)
+        # TODO de-paginate
+        for item in data:
+            url = item['url']
+            filename = get_filename_from_url(url)
+            assert filename
+            save_path = os.path.join(download_base, filename)  # TODO sort into tags
+            if not os.path.isfile(save_path):
+                logger.info('Downloading {} -> {}'.format(url, save_path))
+                download(url, save_path)
+            else:
+                logger.debug('File already exists: {}'.format(save_path))
+        offset += 100
 
 
 logger = logging.getLogger('downloader')
