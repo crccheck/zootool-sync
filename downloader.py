@@ -32,6 +32,9 @@ class Store(object):
         self.find_local_files()
         self.setup_existing()
 
+    def __contains__(self, item):
+        return item['hash'] in self.existing
+
     def find_local_files(self):
         """Find what files we have locally."""
         local_files = {}
@@ -73,10 +76,11 @@ class Store(object):
 
     def add(self, key, meta):
         self.data[key] = meta
-        if meta['hash'] in self.existing:
-            self.existing.pop(meta['hash'])
-        else:
-            print "new item found!", key
+        self.existing[meta['hash']] = key
+        # if meta['hash'] in self.existing:
+        #     self.existing.pop(meta['hash'])
+        # else:
+        #     print "new item found!", key
 
     def save(self):
         # if self.existing:
@@ -138,12 +142,18 @@ def main(username):
             filename = get_filename_from_url(url)
             assert filename
             save_path = filename  # TODO sort into tags
-            if not os.path.isfile(save_path):
+            if os.path.isfile(save_path):
+                logger.debug('File already exists: {}'.format(save_path))
+                continue
+            else:
                 logger.info('Downloading {} -> {}'.format(url, save_path))
                 download(url, save_path)
+            meta = get_meta(item, save_path)
+            if meta in store:
+                logger.debug('File already exists elsewhere, deleting {}'.format(save_path))
+                os.unlink(save_path)
             else:
-                logger.debug('File already exists: {}'.format(save_path))
-            store.add(save_path, get_meta(item, save_path))
+                store.add(save_path, get_meta(item, save_path))
         if len(data) < 100:
             # don't need to check next page
             break
