@@ -17,6 +17,7 @@ download_base = 'download'
 
 class Store(object):
     data = None
+    existing = None
     filename = 'Info.json'
     meta = None
 
@@ -31,11 +32,25 @@ class Store(object):
                 self.data = {}
         else:
             self.data = {}
+        self.setup_existing()
+
+    def setup_existing(self):
+        """Allows us to look up store items by hash."""
+        existing = {}
+        for key, item in self.data.items():
+            existing[item['hash']] = key
+        self.existing = existing
 
     def add(self, key, meta):
         self.data[key] = meta
+        if meta['hash'] in self.existing:
+            self.existing.pop(meta['hash'])
+        else:
+            print "new item found!", key
 
     def save(self):
+        if self.existing:
+            print "orphaned files:", self.existing
         # dump meta
         with open(self.path, 'w') as fh:
             json.dump(self.data, fh, indent=2)
