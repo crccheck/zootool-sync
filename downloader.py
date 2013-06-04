@@ -133,20 +133,20 @@ def main(username):
         if len(data) == 0:
             logger.info('done!')
             break
-        if not os.path.isdir(download_base):
-            os.mkdir(download_base)
         for item in data:
             url = item['url']
             filename = get_filename_from_url(url)
             assert filename
             save_path = filename  # TODO sort into tags
-            full_save_path = os.path.join(download_base, save_path)
-            if not os.path.isfile(full_save_path):
+            if not os.path.isfile(save_path):
                 logger.info('Downloading {} -> {}'.format(url, save_path))
-                download(url, full_save_path)
+                download(url, save_path)
             else:
                 logger.debug('File already exists: {}'.format(save_path))
-            store.add(save_path, get_meta(item, full_save_path))
+            store.add(save_path, get_meta(item, save_path))
+        if len(data) < 100:
+            # don't need to check next page
+            break
         offset += 100
     store.save()
 
@@ -160,9 +160,11 @@ if not len(logger.handlers):
 if __name__ == "__main__":
     cwd = os.getcwd()
     try:
+        if not os.path.isdir(download_base):
+            os.mkdir(download_base)
         os.chdir(download_base)
         store = Store()
-        # main(sys.argv[1])
+        main(sys.argv[1])
     except:
         raise
     finally:
