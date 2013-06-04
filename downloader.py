@@ -1,18 +1,29 @@
+"""
+Zootool Downloader
+
+Usage: downloader.py [options] <directory>
+
+Options:
+  -u --username=<username>  Zootool Username
+  -k --key=<api key>        Zootool Api Key
+
+You can also specify the username and key in the environment as ZOOTOOL_USERNAME
+and ZOOTOOL_API_KEY.
+"""
 from hashlib import md5 as hashfunc
 import json
 import logging
 import os
-import sys
 import urlparse
 
 from project_runpy.tim import env
 from project_runpy.heidi import ColorizingStreamHandler
 import requests
+from docopt import docopt
 
 
 # http://zootool.com/api/docs/users
 url_endpoint = 'http://zootool.com/api/users/items/'
-download_base = 'download'
 
 
 class Store(object):
@@ -130,7 +141,7 @@ def main(username):
     offset = 0
     while True:
         params = dict(
-            apikey=env.get('ZOOTOOL_API_KEY'),
+            apikey=api_key,
             username=username,
             limit=100,
             offset=offset,
@@ -173,13 +184,17 @@ if not len(logger.handlers):
     logger.addHandler(ColorizingStreamHandler())
 
 if __name__ == "__main__":
+    arguments = docopt(__doc__)
+    download_base = arguments['<directory>']
+    username = arguments['--username'] or env.get('ZOOTOOL_USERNAME')
+    api_key = arguments['--key'] or env.get('ZOOTOOL_API_KEY')
     cwd = os.getcwd()
     try:
         if not os.path.isdir(download_base):
             os.mkdir(download_base)
         os.chdir(download_base)
         store = Store()
-        main(sys.argv[1])
+        main(username)
     except:
         raise
     finally:
