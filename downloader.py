@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 import sys
@@ -11,6 +12,8 @@ import requests
 # http://zootool.com/api/docs/users
 url_endpoint = 'http://zootool.com/api/users/items/'
 download_base = 'download'
+meta_file = os.path.join(download_base, 'Info.json')
+store = {}
 
 
 def get_filename_from_url(url):
@@ -49,13 +52,18 @@ def main(username):
             url = item['url']
             filename = get_filename_from_url(url)
             assert filename
-            save_path = os.path.join(download_base, filename)  # TODO sort into tags
-            if not os.path.isfile(save_path):
+            save_path = filename  # TODO sort into tags
+            full_save_path = os.path.join(download_base, save_path)
+            store[save_path] = item
+            if not os.path.isfile(full_save_path):
                 logger.info('Downloading {} -> {}'.format(url, save_path))
-                download(url, save_path)
+                download(url, full_save_path)
             else:
                 logger.debug('File already exists: {}'.format(save_path))
         offset += 100
+    # dump meta
+    with open(meta_file, 'w') as fh:
+        json.dump(store, fh, indent=2)
 
 
 logger = logging.getLogger('downloader')
@@ -65,4 +73,9 @@ if not len(logger.handlers):
     logger.addHandler(ColorizingStreamHandler())
 
 if __name__ == "__main__":
+    if os.path.isfile(meta_file):
+        with open(meta_file) as fh:
+            store = json.load(fh)
+    else:
+        store = dict()
     main(sys.argv[1])
