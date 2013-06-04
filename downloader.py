@@ -13,8 +13,32 @@ import requests
 # http://zootool.com/api/docs/users
 url_endpoint = 'http://zootool.com/api/users/items/'
 download_base = 'download'
-meta_file = os.path.join(download_base, 'Info.json')
-store = {}
+
+
+class Store(object):
+    data = None
+    filename = 'Info.json'
+    meta = None
+
+    def __init__(self):
+        self.path = os.path.join(download_base, 'Info.json')
+        if os.path.isfile(self.path):
+            try:
+                with open(self.path) as fh:
+                    self.data = json.load(fh)
+            except ValueError:
+                logger.warn('meta json corrupted, starting over')
+                self.data = {}
+        else:
+            self.data = {}
+
+    def add(self, key, meta):
+        self.data[key] = meta
+
+    def save(self):
+        # dump meta
+        with open(self.path, 'w') as fh:
+            json.dump(self.data, fh, indent=2)
 
 
 def get_filename_from_url(url):
@@ -74,11 +98,9 @@ def main(username):
                 download(url, full_save_path)
             else:
                 logger.debug('File already exists: {}'.format(save_path))
-            store[save_path] = get_meta(item, full_save_path)
+            store.add(save_path, get_meta(item, full_save_path))
         offset += 100
-    # dump meta
-    with open(meta_file, 'w') as fh:
-        json.dump(store, fh, indent=2)
+    store.save()
 
 
 logger = logging.getLogger('downloader')
@@ -88,13 +110,5 @@ if not len(logger.handlers):
     logger.addHandler(ColorizingStreamHandler())
 
 if __name__ == "__main__":
-    if os.path.isfile(meta_file):
-        try:
-            with open(meta_file) as fh:
-                store = json.load(fh)
-        except ValueError:
-            logger.warn('meta json corrupted, starting over')
-            store = {}
-    else:
-        store = {}
+    store = Store()
     main(sys.argv[1])
