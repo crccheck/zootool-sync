@@ -33,7 +33,7 @@ class Store(object):
         self.setup_existing()
 
     def __contains__(self, item):
-        return item['hash'] in self.existing
+        return item['uid'] in self.existing_uids
 
     def find_local_files(self):
         """Find what files we have locally."""
@@ -50,18 +50,21 @@ class Store(object):
         self.local_files = local_files
 
     def setup_existing(self):
-        """Allows us to look up store items by hash."""
-        existing = {}
+        """Allows us to look up store items by hash or uids."""
+        existing_hashes = {}
+        existing_uids = {}
         lost = []
         for key, item in self.data.items():
             if not os.path.isfile(key):
                 logger.debug('lost file: {}'.format(key))
                 lost.append(key)
-            if item['hash'] in existing:
+            if item['hash'] in existing_hashes:
                 # TODO delete the one that does not actually exist
-                logger.warn('duplicate file found in data: {} {}'.format(key, existing[item['hash']]))
-            existing[item['hash']] = key
-        self.existing = existing
+                logger.warn('duplicate file found in data: {} {}'.format(key, existing_hashes[item['hash']]))
+            existing_hashes[item['hash']] = key
+            existing_uids[item['uid']] = key
+        self.existing = existing_hashes
+        self.existing_uids = existing_uids
         if lost:
             self.relink_files(lost)
 
@@ -141,19 +144,18 @@ def main(username):
             url = item['url']
             filename = get_filename_from_url(url)
             assert filename
+            if item in store:
+                logger.debug('SKIPPING: File already exists {}'.format(filename))
+                continue
             save_path = filename  # TODO sort into tags
             if os.path.isfile(save_path):
-                logger.debug('File already exists: {}'.format(save_path))
+                logger.warn('File already exists: {}'.format(save_path))
                 continue
             else:
                 logger.info('Downloading {} -> {}'.format(url, save_path))
                 download(url, save_path)
             meta = get_meta(item, save_path)
-            if meta in store:
-                logger.debug('File already exists elsewhere, deleting {}'.format(save_path))
-                os.unlink(save_path)
-            else:
-                store.add(save_path, get_meta(item, save_path))
+            store.add(save_path, meta)
         if len(data) < 100:
             # don't need to check next page
             break
