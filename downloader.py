@@ -1,3 +1,4 @@
+#! /usr/bin/env python
 """
 Zootool Downloader
 
@@ -16,10 +17,9 @@ import logging
 import os
 import urlparse
 
-from project_runpy.tim import env
-from project_runpy.heidi import ColorizingStreamHandler
-import requests
 from docopt import docopt
+from project_runpy import env, ColorizingStreamHandler
+import requests
 
 
 # http://zootool.com/api/docs/users
